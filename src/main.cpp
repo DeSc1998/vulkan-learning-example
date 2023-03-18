@@ -1,14 +1,18 @@
 
 #include "pch.hpp"
 
-#define Unused(x) (void)x
+#include "impl.hpp"
 
-int main(int argc, char *argv[]) {
+#define Unused( x ) (void)x
 
-  Unused(argc);
-  Unused(argv);
+int main( int argc, char* argv[] ) {
+  Unused( argc );
+  Unused( argv );
 
-  std::cout << "Hello World\n";
+  ds::Engine engine;
 
-  return 0;
+  engine.init_window( );
+  engine.init_vulkan( );
+
+  engine.loop( );
 }

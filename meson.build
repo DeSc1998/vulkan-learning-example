@@ -1,13 +1,90 @@
 
 project(
-  'triangle_tut',
+  'triangle',
   'cpp',
   default_options : [
-    'buildtype=debugoptimized',
+    'buildtype=release',
     'warning_level=3',
-    'werror=true',
     'cpp_std=c++20'
   ]
+)
+
+vulkan = dependency( 'vulkan', method : 'pkg-config' )
+x = dependency( 'x11', method : 'pkg-config' )
+fmt = dependency( 'fmt', method : 'pkg-config' )
+wayland = dependency( 'wayland-client', method : 'pkg-config' )
+
+engine_src = [
+  'engine/impl.cpp',
+  'engine/component.cpp',
+  'engine/utility.cpp',
+  'engine/window.cpp'
+]
+
+custom_target(
+  'vertex_shader',
+  output: [ 'vert.spv' ],
+  input: [ 'shader/vertex.hlsl' ],
+  install: true,
+  install_dir: 'shader',
+  command: [
+    'glslc',
+    '-o', 'vert.spv',
+    '-fshader-stage=vertex',
+    '--target-env=vulkan1.2',
+    '../shader/vertex.hlsl'
+  ]
+)
+
+custom_target(
+  'fragment_shader',
+  output: [ 'frag.spv' ],
+  input: [ 'shader/fragment.hlsl' ],
+  install: true,
+  install_dir: 'shader',
+  command: [
+    'glslc',
+    '-o', 'frag.spv',
+    '-fshader-stage=fragment',
+    '--target-env=vulkan1.2',
+    '../shader/fragment.hlsl'
+  ]
+)
+
+engine = library(
+  'engine-xorg',
+  sources : engine_src,
+  cpp_args : [ '-D', 'NDEBUG', '-g', '-fno-exceptions' ],
+  cpp_pch : 'engine/pch.hpp',
+  dependencies : [ vulkan, x, fmt ]
+)
+
+engine_d = library(
+  'engine-xorg-debug',
+  sources : engine_src,
+  cpp_args : [ '-g', '-fno-exceptions' ],
+  cpp_pch : 'engine/pch.hpp',
+  dependencies : [ vulkan, x, fmt ],
+  override_options : [ 'buildtype=debug' ]
+)
+
+wl_engine = library(
+  'engine-wayland',
+  sources : engine_src,
+  cpp_args : [ '-D', 'NDEBUG', '-g', '-fno-exceptions',
+    '-D', 'WAYLAND' ],
+  cpp_pch : 'engine/pch.hpp',
+  dependencies : [ vulkan, wayland, fmt ]
+)
+
+wl_engine_d = library(
+  'engine-wayland-debug',
+  sources : engine_src,
+  cpp_args : [ '-g', '-fno-exceptions',
+    '-D', 'WAYLAND' ],
+  cpp_pch : 'engine/pch.hpp',
+  dependencies : [ vulkan, wayland, fmt ],
+  override_options : [ 'buildtype=debug' ]
 )
 
 src = [ 'src/main.cpp' ]
@@ -15,7 +92,41 @@ src = [ 'src/main.cpp' ]
 pch = 'src/pch.hpp'
 
 exe = executable(
-  'triangle_test',
+  'triangle.xorg',
   sources : src,
-  cpp_pch : pch
+  include_directories : 'engine',
+  cpp_args : [ '-D', 'NDEBUG', '-g' ],
+  cpp_pch : pch,
+  link_with : engine
+)
+
+exe = executable(
+  'triangle-debug.xorg',
+  sources : src,
+  include_directories : 'engine',
+  cpp_pch : pch,
+  cpp_args : [ '-g' ],
+  link_with : engine_d,
+  override_options : [ 'buildtype=debug' ]
+)
+
+exe = executable(
+  'triangle.wayland',
+  sources : src,
+  include_directories : 'engine',
+  cpp_args : [ '-D', 'NDEBUG', '-g',
+    '-D', 'WAYLAND' ],
+  cpp_pch : pch,
+  link_with : wl_engine
+)
+
+exe = executable(
+  'triangle-debug.wayland',
+  sources : src,
+  include_directories : 'engine',
+  cpp_pch : pch,
+  cpp_args : [ '-g',
+    '-D', 'WAYLAND' ],
+  link_with : wl_engine_d,
+  override_options : [ 'buildtype=debug' ]
 )
