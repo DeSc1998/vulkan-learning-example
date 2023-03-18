@@ -12,7 +12,7 @@ project(
 vulkan = dependency( 'vulkan', method : 'pkg-config' )
 x = dependency( 'x11', method : 'pkg-config' )
 fmt = dependency( 'fmt', method : 'pkg-config' )
-wayland = dependency( 'wayland-client', method : 'pkg-config' )
+wayland = dependency( 'wayland-client++', method : 'pkg-config' )
 
 engine_src = [
   'engine/impl.cpp',
