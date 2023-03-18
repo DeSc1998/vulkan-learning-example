@@ -1,1 +1,6 @@
 build/
+conan.lock
+conaninfo.txt
+conanbuildinfo.txt
+*.pc
+*.json
