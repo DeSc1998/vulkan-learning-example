@@ -12,15 +12,6 @@ namespace ds {
 
   static const std::vector< const char* > validation_layers
     = { "VK_LAYER_KHRONOS_validation" };
-#ifndef WAYLAND
-  static const std::vector< const char* > instance_extensions
-    = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
-#else
-  static const std::vector< const char* > instance_extensions
-    = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
-        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
-#endif
 
   static const std::vector< const char* > device_extensions
     = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
@@ -72,20 +63,6 @@ namespace ds {
     return true;
   }
 
-  std::vector< const char* > get_required_extentions( ) {
-    std::vector< const char* > extentions { };
-
-    if constexpr ( enable_validation_layer ) {
-      extentions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
-    }
-
-    for ( auto ext : instance_extensions ) {
-      extentions.push_back( ext );
-    }
-
-    return extentions;
-  }
-
   unsigned int
     debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT      msg_severity,
                     VkDebugUtilsMessageTypeFlagsEXT             msg_type,
@@ -130,7 +107,13 @@ namespace ds {
     app_info.engineVersion      = VK_MAKE_VERSION( 0, 1, 0 );
     app_info.apiVersion         = VK_API_VERSION_1_3;
 
-    auto extentions = get_required_extentions( );
+    auto extentions = win.get_required_extensions( );
+    if constexpr ( debug_mode ) {
+      extentions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+    }
+
+    extentions.push_back(
+      VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME );
 
     create_info.pApplicationInfo        = &app_info;
     create_info.enabledExtensionCount   = extentions.size( );
@@ -237,7 +220,7 @@ namespace ds {
       auto indicies            = find_queue_families( dev, surface );
       auto swap_chain_adequate = false;
       auto present_support     = win.has_presentation_support(
-        dev, indicies.graphics_family.value( ) );
+        instance, dev, indicies.graphics_family.value( ) );
 
       if ( has_extension_support( dev ) ) {
         std::vector< vk::SurfaceFormatKHR > formats { };
@@ -259,6 +242,8 @@ namespace ds {
     (void)instance.enumeratePhysicalDevices( &count, nullptr );
     devices.resize( count );
     (void)instance.enumeratePhysicalDevices( &count, devices.data( ) );
+
+    info( "picking physical device" );
 
     if ( devices.size( ) < 1 ) {
       error( "could not find a GPU with Vulkan support" );

@@ -5,11 +5,8 @@
 #include <optional>
 #include <vector>
 
-#include <X11/Xlib.h>
-
-#define VK_USE_PLATFORM_XLIB_KHR
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
-
+#define VK_USE_PLATFORM_GLFW_KHR
 #include <vulkan/vulkan.hpp>
 
 #include "memory.hpp"
