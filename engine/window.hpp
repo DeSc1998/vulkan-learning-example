@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef __linux__
-#error Linux with X11 or Wayland is the only supported platform
+#error Linux with X11 is the only supported platform
 #endif
 
 // TODO: explore wayland and xorg natively
@@ -33,13 +33,16 @@ namespace ds {
   static constexpr auto default_width  = 1200u;
   static constexpr auto default_height = 800u;
 
+  struct Size {
+    size_t width = 0, height = 0;
+  };
+
   class Window_handle final {
-    GLFWwindow* window = nullptr;
+    GLFWwindow*  window = nullptr;
+    vk::Extent2D old_extent { };
 
   public:
-    struct Size {
-      size_t width = 0, height = 0;
-    };
+    bool has_been_resized = false;
 
     struct Event {
       enum class Type {
@@ -59,10 +62,13 @@ namespace ds {
 
     vk::Result init_surface( vk::Instance, vk::SurfaceKHR& ) const;
 
-    vk::Extent2D get_extent( vk::PhysicalDevice, vk::SurfaceKHR ) const;
-    bool         has_presentation_support( vk::Instance, vk::PhysicalDevice,
-                                           uint32_t ) const;
-    Event        next_event( ) const;
+    vk::Extent2D get_extent( vk::PhysicalDevice, vk::SurfaceKHR );
+    vk::Extent2D get_old_extent( ) const;
+    void         update_extent( vk::PhysicalDevice, vk::SurfaceKHR );
+
+    bool  has_presentation_support( vk::Instance, vk::PhysicalDevice,
+                                    uint32_t ) const;
+    Event next_event( ) const;
 
     ~Window_handle( );
   };

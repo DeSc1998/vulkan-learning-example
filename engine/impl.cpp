@@ -13,9 +13,11 @@ namespace ds {
   static const std::vector< const char* > validation_layers
     = { "VK_LAYER_KHRONOS_validation" };
 
-  static const std::vector< const char* > device_extensions
-    = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
-        VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME };
+  static const std::vector< const char* > device_extensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
+    VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME,
+  };
 
   static queue_family_indicies indicies;
 
@@ -339,10 +341,6 @@ namespace ds {
     std::vector< vk::SurfaceFormatKHR > formats;
     uint32_t                            count = 0;
     Fill( p, s, getSurfaceFormatsKHR, formats );
-    // uint32_t                            count;
-    // (void)p.getSurfaceFormatsKHR( s, &count, nullptr );
-    // formats.resize( count );
-    // (void)p.getSurfaceFormatsKHR( s, &count, formats.data( ) );
 
     auto format = std::find_if(
       formats.begin( ), formats.end( ), []( const vk::SurfaceFormatKHR& f ) {
@@ -372,11 +370,8 @@ namespace ds {
 
       if constexpr ( debug_mode )
         fmt::print( "INFO: chosen mode at: {}\n", mode - modes.begin( ) );
-#ifdef WAYLAND
-      return vk::PresentModeKHR::eMailbox;
-#else
+
       return mode != modes.end( ) ? *mode : vk::PresentModeKHR::eFifo;
-#endif
     };
 
     vk::SurfaceCapabilitiesKHR capabiliteies { };
@@ -430,17 +425,10 @@ namespace ds {
       create_info.imageSharingMode = vk::SharingMode::eExclusive;
     }
 
-    if ( swap_chain ) {
-      create_info.oldSwapchain = swap_chain;
-    }
-
     auto result
       = device.createSwapchainKHR( &create_info, nullptr, &swap_chain );
 
     exit_on_fail( "failed to create Swapchain", result );
-
-    if ( create_info.oldSwapchain )
-      device.destroy( create_info.oldSwapchain, nullptr );
 
     if constexpr ( debug_mode )
       fmt::print( "INFO: finished creating swap chain\n" );
@@ -454,6 +442,7 @@ namespace ds {
     if ( result != vk::Result::eSuccess ) {
       error( "failed to retrive images", result );
     }
+    win.update_extent( physical_device, surface );
   }
 
   void Engine::create_image_views( ) {
@@ -550,6 +539,23 @@ namespace ds {
     return tmp;
   }
 
+  void Engine::create_descriptor_layout( ) {
+    vk::DescriptorSetLayoutBinding layout_binding { };
+    layout_binding.binding         = 0;
+    layout_binding.descriptorType  = vk::DescriptorType::eUniformBuffer;
+    layout_binding.descriptorCount = 1;
+    layout_binding.stageFlags      = vk::ShaderStageFlagBits::eVertex;
+
+    vk::DescriptorSetLayoutCreateInfo create_info { };
+    create_info.bindingCount = 1;
+    create_info.pBindings    = &layout_binding;
+
+    auto result = device.createDescriptorSetLayout( &create_info, nullptr,
+                                                    &descriptor_layout );
+
+    exit_on_fail( "failed to create DescriptorSetLayout", result );
+  }
+
   void Engine::create_graphics_pipeline( ) {
     // TODO: extract shader setup
     const auto vertex_code   = read_file( "build/vert.spv" );
@@ -630,6 +636,8 @@ namespace ds {
     colorBlending.pAttachments    = &colorBlendAttachment;
 
     vk::PipelineLayoutCreateInfo p { };
+    p.setLayoutCount = 1;
+    p.pSetLayouts    = &descriptor_layout;
 
     auto result = device.createPipelineLayout( &p, nullptr, &pipeline_layout );
 
@@ -703,6 +711,9 @@ namespace ds {
 
       framebuffers.emplace_back( std::move( tmp ) );
     }
+
+    // if constexpr ( debug_mode )
+    //   fmt::print( "INFO: framebuffer count: {}\n", framebuffers.size( ) );
   }
 
   void Engine::create_command_pool( ) {
@@ -720,29 +731,161 @@ namespace ds {
   }
 
   std::vector< Component > Engine::vertices = {
-    { { 0.3, -0.4, 0.5, 1.0 }, { 1.0, 0.0, 0.0, 1.0 }, 0.0 },
-    { { 0.0, 0.4, 0.5, 1.0 }, { 0.0, 1.0, 0.0, 1.0 }, 0.0 },
-    { { -0.3, -0.4, 0.5, 1.0 }, { 0.0, 0.0, 1.0, 1.0 }, 0.0 },
+    // front
+    { { 0.5, -0.5, 0.5 }, { 1, 0, 0, 1 }, 0 },
+    { { 0, 0.7, 0 }, { 0, 1, 0, 1 }, 0 },
+    { { -0.5, -0.5, 0.5 }, { 0, 0, 1, 1 }, 0 },
+    // left
+    { { -0.5, -0.5, 0.5 }, { 0, 0, 1, 1 }, 0 },
+    { { 0, 0.7, 0 }, { 0, 1, 0, 1 }, 0 },
+    { { -0.5, -0.5, -0.5 }, { 0, 1, 1, 1 }, 0 },
+    // right
+    { { 0.5, -0.5, -0.5 }, { 1, 0, 0, 1 }, 0 },
+    { { 0, 0.7, 0 }, { 0, 1, 0, 1 }, 0 },
+    { { 0.5, -0.5, 0.5 }, { 0, 0, 1, 1 }, 0 },
+    // back
+    { { -0.5, -0.5, -0.5 }, { 0, 1, 1, 1 }, 0 },
+    { { 0, 0.7, 0 }, { 0, 1, 0, 1 }, 0 },
+    { { 0.5, -0.5, -0.5 }, { 1, 0, 1, 1 }, 0 },
   };
 
-  void Engine::create_buffers( ) {
-    memory
-      = GPU_Memory< Component > { device, physical_device, vertices.size( ) };
+  Camera cam = { { 0, 1.5, 1.75, 0 }, { 0, -1, -1, 0 } };
 
-    size_t i = 0;
-    for ( auto& com : vertices ) {
-      memory[i++] = com;
+  void Engine::set_components( std::vector< Component > data ) {
+    user_vertices = data;
+  }
+
+  void Engine::create_buffers( ) {
+    auto find_mem_type = [&]( uint32_t filter, vk::MemoryPropertyFlags flags ) {
+      vk::PhysicalDeviceMemoryProperties mem_props;
+      physical_device.getMemoryProperties( &mem_props );
+      for ( size_t i = 0; i < mem_props.memoryTypeCount; ++i ) {
+        if ( filter & ( 1 << i )
+             && ( mem_props.memoryTypes[i].propertyFlags & flags ) == flags ) {
+          return i;
+        }
+      }
+
+      error( "failed to find suitable memory" );
+      exit( 1 );
+    };
+
+    // uniforms
+    using size_type                = vk::DeviceSize;
+    const auto uniform_buffer_size = sizeof( Camera );
+    uniforms.resize( framebuffers.size( ) );
+
+    for ( auto& uniform : uniforms ) {
+      vk::BufferCreateInfo buffer_info { };
+      buffer_info.size  = uniform_buffer_size;
+      buffer_info.usage = vk::BufferUsageFlagBits::eUniformBuffer
+                          | vk::BufferUsageFlagBits::eShaderDeviceAddress;
+      buffer_info.sharingMode = vk::SharingMode::eExclusive;
+      auto result
+        = device.createBuffer( &buffer_info, nullptr, &uniform.buffer );
+      exit_on_fail( "failed to create uniform buffer", result );
+
+      vk::MemoryRequirements requirements { };
+      device.getBufferMemoryRequirements( uniform.buffer, &requirements );
+
+      vk::MemoryAllocateInfo alloc_info { };
+      alloc_info.allocationSize = requirements.size;
+      alloc_info.memoryTypeIndex
+        = find_mem_type( requirements.memoryTypeBits,
+                         vk::MemoryPropertyFlagBits::eHostVisible
+                           | vk::MemoryPropertyFlagBits::eHostCoherent );
+      result = device.allocateMemory( &alloc_info, nullptr, &uniform.memory );
+      exit_on_fail( "failed to create uniform buffer memory", result );
+
+      // TODO: might want to handle the result
+      (void)device.bindBufferMemory( uniform.buffer, uniform.memory, 0 );
+
+      result = device.mapMemory(
+        uniform.memory, size_type { 0 }, size_type { uniform_buffer_size },
+        vk::MemoryMapFlags { 0 }, (void**)&uniform.mapped_memory );
+      exit_on_fail( "failed to map uniform buffer memory", result );
+
+      for ( size_t i = 0; i < 3; ++i ) {
+        uniform.mapped_memory->direction[i] = cam.direction[i];
+        uniform.mapped_memory->position[i]  = cam.position[i];
+      }
+    }
+
+    // vertex
+    if ( user_vertices ) {
+      const auto& tmp = user_vertices.value( );
+      memory = GPU_Memory< Component > { device, physical_device, tmp.size( ) };
+
+      for ( size_t i = 0; i < tmp.size( ); ++i ) {
+        memory[i] = tmp[i];
+      }
+    } else {
+      memory
+        = GPU_Memory< Component > { device, physical_device, vertices.size( ) };
+
+      for ( size_t i = 0; i < vertices.size( ); ++i ) {
+        memory[i] = vertices[i];
+      }
     }
   }
 
-  void Engine::record_command_buffer( size_t image_index ) {
-    vk::CommandBufferBeginInfo cb_info { };
-    vk::RenderPassBeginInfo    rp_info { };
+  void Engine::create_descriptor_pool( ) {
+    vk::DescriptorPoolSize pool_size { };
+    pool_size.descriptorCount = framebuffers.size( );
+
+    vk::DescriptorPoolCreateInfo create_info { };
+    create_info.poolSizeCount = 1;
+    create_info.pPoolSizes    = &pool_size;
+    create_info.maxSets       = framebuffers.size( );
+
+    auto result = device.createDescriptorPool( &create_info, nullptr, &pool );
+    exit_on_fail( "failed to create decriptor pool", result );
+  }
+
+  void Engine::create_descriptor_sets( ) {
+    std::vector< vk::DescriptorSetLayout > layouts { framebuffers.size( ),
+                                                     descriptor_layout };
+    vk::DescriptorSetAllocateInfo          alloc_info { };
+    alloc_info.descriptorPool     = pool;
+    alloc_info.descriptorSetCount = framebuffers.size( );
+    alloc_info.pSetLayouts        = layouts.data( );
+
+    sets.resize( framebuffers.size( ) );
+    auto result = device.allocateDescriptorSets( &alloc_info, sets.data( ) );
+    exit_on_fail( "failed to allocate descriptor sets", result );
+
+    for ( size_t i = 0; i < framebuffers.size( ); ++i ) {
+      vk::DescriptorBufferInfo info { };
+      info.buffer = uniforms[i].buffer;
+      info.offset = 0;
+      info.range  = sizeof( Camera );
+
+      vk::WriteDescriptorSet write { };
+      write.dstSet          = sets[i];
+      write.dstBinding      = 0;
+      write.dstArrayElement = 0;
+      write.descriptorType  = vk::DescriptorType::eUniformBuffer;
+      write.descriptorCount = 1;
+      write.pBufferInfo     = &info;
+
+      device.updateDescriptorSets( 1, &write, 0, nullptr );
+      fmt::print( "INFO: writing descriptor set at index {}\n", i );
+    }
+  }
+
+  void Engine::record_command_buffer( size_t image_index,
+                                      size_t current_frame ) {
+    vk::CommandBufferBeginInfo         cb_info { };
+    vk::RenderPassBeginInfo            rp_info { };
+    vk::DeviceGroupRenderPassBeginInfo grp_info { };
+
     vk::ClearValue clear_color { std::array< float, 4 > { 0.1, 0.1, 0.1,
                                                           0.2 } };
     vk::Viewport   view { };
     vk::Rect2D     scissor { };
-    auto           extent = win.get_extent( physical_device, surface );
+    vk::Rect2D     old_area { };
+    auto           extent     = win.get_extent( physical_device, surface );
+    auto           old_extent = win.get_old_extent( );
 
     view.x        = 0.0;
     view.y        = 0.0;
@@ -752,29 +895,43 @@ namespace ds {
     view.maxDepth = 1.0;
 
     scissor.extent = extent;
-    // scissor.offset = vk::Offset2D { 0, 0 };
 
-    rp_info.renderPass  = render_pass;
-    rp_info.framebuffer = framebuffers[image_index];
-    // rp_info.renderArea.offset = vk::Offset2D { 0, 0 };
+    rp_info.renderPass        = render_pass;
+    rp_info.framebuffer       = framebuffers[image_index];
     rp_info.renderArea.extent = extent;
     rp_info.clearValueCount   = 1;
     rp_info.pClearValues      = &clear_color;
+    rp_info.pNext             = &grp_info;
+
+    old_area.extent                = old_extent;
+    grp_info.deviceMask            = 1; // TODO: deviceMask is hard coded
+    grp_info.deviceRenderAreaCount = 1;
+    grp_info.pDeviceRenderAreas    = &old_area;
 
     cb_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
     vk::DeviceSize offsets[] = { 0 };
 
-    (void)command_buffer.begin( &cb_info );
-    command_buffer.bindVertexBuffers( 0, 1, memory.expose_buffer( ), offsets );
-    command_buffer.beginRenderPass( &rp_info, vk::SubpassContents::eInline );
-    command_buffer.bindPipeline( vk::PipelineBindPoint::eGraphics,
-                                 graphics_pipeline );
-    command_buffer.setViewport( 0, 1, &view );
-    command_buffer.setScissor( 0, 1, &scissor );
-    command_buffer.draw( vertices.size( ), 1, 0, 0 );
-    command_buffer.endRenderPass( );
-    auto result = command_buffer.end( );
+    // TODO: add descriptor
+    (void)command_buffer[current_frame].begin( &cb_info );
+    command_buffer[current_frame].bindVertexBuffers(
+      0, 1, memory.expose_buffer( ), offsets );
+    command_buffer[current_frame].beginRenderPass(
+      &rp_info, vk::SubpassContents::eInline );
+    command_buffer[current_frame].bindPipeline(
+      vk::PipelineBindPoint::eGraphics, graphics_pipeline );
+    command_buffer[current_frame].setViewport( 0, 1, &view );
+    command_buffer[current_frame].setScissor( 0, 1, &scissor );
+    command_buffer[current_frame].bindDescriptorSets(
+      vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1,
+      &sets[current_frame], 0, nullptr );
+    if ( user_vertices )
+      command_buffer[current_frame].draw( user_vertices.value( ).size( ), 1, 0,
+                                          0 );
+    else
+      command_buffer[current_frame].draw( vertices.size( ), 1, 0, 0 );
+    command_buffer[current_frame].endRenderPass( );
+    auto result = command_buffer[current_frame].end( );
 
     if ( result != vk::Result::eSuccess ) {
       error( "an error accured during recording", result );
@@ -786,9 +943,10 @@ namespace ds {
 
     cba.commandPool        = command_pool;
     cba.level              = vk::CommandBufferLevel::ePrimary;
-    cba.commandBufferCount = 1;
+    cba.commandBufferCount = framebuffers.size( );
 
-    auto result = device.allocateCommandBuffers( &cba, &command_buffer );
+    command_buffer.resize( framebuffers.size( ) );
+    auto result = device.allocateCommandBuffers( &cba, command_buffer.data( ) );
 
     if ( result != vk::Result::eSuccess ) {
       error( "failed to allocate command buffers", result );
@@ -801,9 +959,15 @@ namespace ds {
 
     f.flags = vk::FenceCreateFlagBits::eSignaled;
 
-    (void)device.createSemaphore( &s, nullptr, &sema_image_available );
-    (void)device.createSemaphore( &s, nullptr, &sema_render_finished );
-    (void)device.createFence( &f, nullptr, &fence_in_flight );
+    sema_image_available.resize( framebuffers.size( ) );
+    sema_render_finished.resize( framebuffers.size( ) );
+    fence_in_flight.resize( framebuffers.size( ) );
+
+    for ( size_t i = 0; i < framebuffers.size( ); ++i ) {
+      (void)device.createSemaphore( &s, nullptr, &sema_image_available[i] );
+      (void)device.createSemaphore( &s, nullptr, &sema_render_finished[i] );
+      (void)device.createFence( &f, nullptr, &fence_in_flight[i] );
+    }
   }
 
   void Engine::init_vulkan( ) {
@@ -814,11 +978,14 @@ namespace ds {
     create_swap_chain( );
     create_image_views( );
     create_render_pass( );
+    create_descriptor_layout( );
     create_graphics_pipeline( );
     create_framebuffers( );
     create_command_pool( );
     create_command_buffer( );
     create_buffers( );
+    create_descriptor_pool( );
+    create_descriptor_sets( );
     create_sync( );
   }
 
@@ -830,29 +997,43 @@ namespace ds {
   }
 
   void Engine::recreate( ) {
-    (void)device.waitIdle( );
+    (void)device.waitForFences( fence_in_flight.size( ),
+                                fence_in_flight.data( ), vk::Bool32( true ),
+                                std::numeric_limits< uint64_t >::max( ) );
+    //(void)device.waitIdle( );
 
     if constexpr ( debug_mode )
       info( "freeing image views" );
+
+    for ( auto& framebuffer : framebuffers ) {
+      device.destroy( framebuffer, nullptr );
+    }
+    framebuffers.clear( );
+
     for ( auto& image_view : swap_chain_image_views ) {
-      device.destroyImageView( image_view, nullptr );
+      device.destroy( image_view, nullptr );
     }
     swap_chain_image_views.clear( );
+
+    device.destroy( swap_chain, nullptr );
 
     create_swap_chain( );
     create_image_views( );
     create_framebuffers( );
 
-    (void)device.resetFences( 1, &fence_in_flight );
+    //(void)device.resetFences( 1, &fence_in_flight );
   }
 
-  void Engine::handle_result( vk::Result result ) {
-    if ( result == vk::Result::eErrorOutOfDateKHR ) {
+  /// @return true if 'result' was vk::Result::eSuccess
+  bool Engine::handle_result( vk::Result result ) {
+    if ( result == vk::Result::eSuccess )
+      return true;
+
+    if ( result == vk::Result::eErrorOutOfDateKHR || win.has_been_resized ) {
       if constexpr ( debug_mode )
         info( "out of date: recreating swap chain and framebuffers" );
-
       recreate( );
-
+      win.has_been_resized = false;
       if constexpr ( debug_mode )
         info( "finished recreating" );
     } else if ( result == vk::Result::eErrorDeviceLost ) {
@@ -861,70 +1042,77 @@ namespace ds {
 
       if ( !recover_device( device ) ) {
         error( "failed to recover device", vk::Result::eErrorDeviceLost );
+        this->~Engine( );
         exit( 1 );
       }
     } else if ( result == vk::Result::eTimeout ) {
       if constexpr ( debug_mode )
         info( "an action has been timed out" );
-    } else if ( result != vk::Result::eSuccess ) {
+    } else {
       error( "an error accured", result );
     }
+    return false;
   }
 
-  void Engine::draw_frame( ) {
-    auto result = device.waitForFences( 1, &fence_in_flight, vk::Bool32( true ),
-                                        10'000'000 );
+  /// @return true if a new frame been submitted
+  bool Engine::draw_frame( size_t current_frame ) {
+    auto result = device.waitForFences(
+      1, &fence_in_flight[current_frame], vk::Bool32( true ),
+      std::numeric_limits< uint64_t >::max( ) );
 
-    handle_result( result );
+    if ( !handle_result( result ) ) {
+      info( "after waiting for fence" );
+      return false;
+    }
 
-    result = device.resetFences( 1, &fence_in_flight );
-    handle_result( result );
+    result = device.resetFences( 1, &fence_in_flight[current_frame] );
+    if ( !handle_result( result ) )
+      return false;
 
     uint32_t index { };
     result = device.acquireNextImageKHR(
-      swap_chain, std::numeric_limits< uint64_t >::max( ), sema_image_available,
-      nullptr, &index );
+      swap_chain, std::numeric_limits< uint64_t >::max( ),
+      sema_image_available[current_frame], nullptr, &index );
 
-    handle_result( result );
+    if ( !handle_result( result ) ) {
+      info( "after acquiring next image" );
+      return false;
+    }
 
-    result = command_buffer.reset( vk::CommandBufferResetFlags { 0 } );
-    handle_result( result );
+    result = command_buffer[current_frame].reset(
+      vk::CommandBufferResetFlags { 0 } );
+    if ( !handle_result( result ) )
+      return false;
 
-    record_command_buffer( index );
+    record_command_buffer( index, current_frame );
 
     vk::SubmitInfo         submit { };
     vk::PipelineStageFlags flags[]
       = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
 
     submit.waitSemaphoreCount   = 1;
-    submit.pWaitSemaphores      = &sema_image_available;
+    submit.pWaitSemaphores      = &sema_image_available[current_frame];
     submit.pWaitDstStageMask    = flags;
     submit.commandBufferCount   = 1;
-    submit.pCommandBuffers      = &command_buffer;
+    submit.pCommandBuffers      = &command_buffer[current_frame];
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores    = &sema_render_finished;
+    submit.pSignalSemaphores    = &sema_render_finished[current_frame];
 
-    result = queue.submit( 1, &submit, fence_in_flight );
-    handle_result( result );
+    result = queue.submit( 1, &submit, fence_in_flight[current_frame] );
+    if ( !handle_result( result ) )
+      return false;
 
     vk::PresentInfoKHR p { };
 
     p.waitSemaphoreCount = 1;
-    p.pWaitSemaphores    = &sema_render_finished;
+    p.pWaitSemaphores    = &sema_render_finished[current_frame];
     p.swapchainCount     = 1;
     p.pSwapchains        = &swap_chain;
     p.pImageIndices      = &index;
 
     result = queue.presentKHR( &p );
 
-    handle_result( result );
-  }
-
-  int match_event( Display*, XEvent* e, XPointer ) {
-    if ( e->type == ClientMessage )
-      return True;
-    else
-      return False;
+    return handle_result( result );
   }
 
   void fill_vertex_buffer( GPU_Memory< Component >&        mem,
@@ -937,6 +1125,7 @@ namespace ds {
   void Engine::loop( ) {
     Window_handle::Event event;
     auto                 last_time = std::chrono::high_resolution_clock::now( );
+    size_t               current_frame = 0;
 
     while ( true ) {
       event = win.next_event( );
@@ -950,27 +1139,55 @@ namespace ds {
         current - last_time );
       last_time = current;
 
-      for ( auto& vertex : vertices ) {
+      for ( auto& vertex : user_vertices ? user_vertices.value( ) : vertices ) {
         vertex.time += diff.count( ) / 1000.0;
       }
 
-      fill_vertex_buffer( memory, vertices );
+      if ( user_vertices )
+        fill_vertex_buffer( memory, user_vertices.value( ) );
+      else
+        fill_vertex_buffer( memory, vertices );
 
-      draw_frame( );
+      auto memory = *uniforms[current_frame].mapped_memory;
+      for ( size_t i = 0; i < 3; ++i ) {
+        memory.direction[i] = cam.direction[i];
+        memory.position[i]  = cam.position[i];
+      }
+
+      if ( draw_frame( current_frame ) )
+        current_frame = ( current_frame + 1 ) % framebuffers.size( );
     }
 
     (void)device.waitIdle( );
   }
 
   Engine::~Engine( ) {
-    // instance and/or device manage window and display.
-    // freeing them before window and display causes a segmentation fault.
+    if ( !instance )
+      return;
+
+    (void)device.waitForFences( fence_in_flight.size( ),
+                                fence_in_flight.data( ), vk::Bool32( true ),
+                                std::numeric_limits< uint64_t >::max( ) );
+    (void)device.waitIdle( );
+
     memory.~GPU_Memory( );
-    device.freeCommandBuffers( command_pool, 1, &command_buffer );
+
+    for ( auto& uniform : uniforms ) {
+      device.unmapMemory( uniform.memory );
+      device.freeMemory( uniform.memory, nullptr );
+      device.destroy( uniform.buffer, nullptr );
+    }
+
+    device.destroy( pool, nullptr );
+
+    device.freeCommandBuffers( command_pool, command_buffer.size( ),
+                               command_buffer.data( ) );
     device.destroy( command_pool, nullptr );
-    device.destroy( sema_image_available, nullptr );
-    device.destroy( sema_render_finished, nullptr );
-    device.destroy( fence_in_flight, nullptr );
+    for ( size_t i = 0; i < framebuffers.size( ); ++i ) {
+      device.destroy( sema_image_available[i], nullptr );
+      device.destroy( sema_render_finished[i], nullptr );
+      device.destroy( fence_in_flight[i], nullptr );
+    }
 
     free_framebuffers( device, framebuffers );
 
@@ -978,15 +1195,17 @@ namespace ds {
     device.destroy( pipeline_cache, nullptr );
     device.destroy( render_pass, nullptr );
     device.destroy( pipeline_layout, nullptr );
+    device.destroy( descriptor_layout, nullptr );
     for ( auto& image_view : swap_chain_image_views ) {
       device.destroy( image_view, nullptr );
     }
     device.destroy( swap_chain,
                     nullptr ); // swapchain uses X11 stuff
     instance.destroy( surface, nullptr );
-    win.~Window_handle( );
     device.destroy( nullptr );
     instance.destroy( nullptr );
+
+    info( "~Engine - completed destruction" );
   }
 
 } // namespace ds

@@ -97,13 +97,12 @@ namespace ds {
       result = device.allocateMemory( &alloc_info, nullptr, &device_memory );
       exit_on_fail( "failed to allocate device memory", result );
 
-      // Why is a void function mark as nodiscard?
       (void)device.bindBufferMemory( buffer, device_memory, 0 );
 
-      auto resval2 = device.mapMemory( device_memory, 0, buffer_info.size,
-                                       (vk::MemoryMapFlags)0, (void**)&memory,
-                                       vk::DispatchLoaderStatic( ) );
-      exit_on_fail( "failed to map memory", resval2 );
+      result = device.mapMemory( device_memory, 0, buffer_info.size,
+                                 (vk::MemoryMapFlags)0, (void**)&memory,
+                                 vk::DispatchLoaderStatic( ) );
+      exit_on_fail( "failed to map memory", result );
     }
 
     const T& operator[]( size_t offset ) const {

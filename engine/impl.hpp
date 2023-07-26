@@ -1,6 +1,7 @@
 #ifndef IMPL_H_
 #define IMPL_H_
 
+#include <array>
 #include <filesystem>
 #include <optional>
 #include <vector>
@@ -9,12 +10,22 @@
 #define VK_USE_PLATFORM_GLFW_KHR
 #include <vulkan/vulkan.hpp>
 
+#include "component.hpp"
 #include "memory.hpp"
 #include "window.hpp"
 
 namespace ds {
 
-  struct Component;
+  struct Camera {
+    float position[4];
+    float direction[4];
+  };
+
+  struct Uniform_buffer_data {
+    vk::Buffer       buffer { };
+    vk::DeviceMemory memory { };
+    Camera*          mapped_memory = nullptr;
+  };
 
   class Engine {
     Window_handle win;
@@ -33,22 +44,30 @@ namespace ds {
 
     vk::RenderPass render_pass { };
 
-    vk::PipelineLayout pipeline_layout { };
-    vk::PipelineCache  pipeline_cache { };
-    vk::Pipeline       graphics_pipeline { };
+    vk::DescriptorSetLayout descriptor_layout { };
+    vk::PipelineLayout      pipeline_layout { };
+    vk::PipelineCache       pipeline_cache { };
+    vk::Pipeline            graphics_pipeline { };
 
     std::vector< vk::Framebuffer > framebuffers { };
 
-    vk::CommandPool   command_pool { };
-    vk::CommandBuffer command_buffer { };
+    vk::CommandPool                  command_pool { };
+    std::vector< vk::CommandBuffer > command_buffer;
 
-    vk::Semaphore sema_image_available { };
-    vk::Semaphore sema_render_finished { };
-    vk::Fence     fence_in_flight { };
+    std::vector< vk::Semaphore > sema_image_available;
+    std::vector< vk::Semaphore > sema_render_finished;
+    std::vector< vk::Fence >     fence_in_flight;
+
+    // vk::Buffer                         index_buffer { };
+    // vk::DeviceMemory                   index_buffer_memory { };
+    std::vector< Uniform_buffer_data > uniforms;
+    vk::DescriptorPool                 pool { };
+    std::vector< vk::DescriptorSet >   sets;
 
     GPU_Memory< Component > memory;
 
-    static std::vector< Component > vertices;
+    static std::vector< Component >           vertices;
+    std::optional< std::vector< Component > > user_vertices;
 
     void create_instance( );
     void pick_physical_device( );
@@ -56,23 +75,26 @@ namespace ds {
     void create_device( );
     void create_swap_chain( );
     void create_image_views( );
+    void create_descriptor_layout( );
     void create_graphics_pipeline( );
     void create_render_pass( );
     void create_framebuffers( );
     void create_command_pool( );
     void create_command_buffer( );
     void create_buffers( );
-    void record_command_buffer( size_t image_index );
+    void create_descriptor_pool( );
+    void create_descriptor_sets( );
+    void record_command_buffer( size_t index, size_t frame );
     void create_sync( );
-    void draw_frame( );
+    bool draw_frame( size_t frame );
 
     void recreate( );
-    void handle_result( vk::Result );
+    bool handle_result( vk::Result );
 
   public:
     Engine( ) = default;
 
-    // TODO: to lazy to implement copy and move
+    // TODO: to lazy to implement copy and move.
     //       might not be nessecary
     Engine( const Engine& )            = delete;
     Engine& operator=( const Engine& ) = delete;
@@ -82,6 +104,8 @@ namespace ds {
     void init_window( );
     void init_vulkan( );
     void loop( );
+
+    void set_components( std::vector< Component > );
 
     ~Engine( );
   };

@@ -21,15 +21,15 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_wayland.h>
 #else
-#include <X11/Xlib.h>
-#include <X11/Xos.h>
-#include <X11/Xutil.h>
+// #include <X11/Xlib.h>
+// #include <X11/Xos.h>
+// #include <X11/Xutil.h>
 
-#define VK_USE_PLATFORM_XLIB_KHR
+// #define VK_USE_PLATFORM_XLIB_KHR
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
 
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_xlib.h>
+// #include <vulkan/vulkan_xlib.h>
 #endif
 
 // external libs

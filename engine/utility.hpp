@@ -9,9 +9,8 @@ namespace ds {
 
   namespace fs = std::filesystem;
 
-  enum class Error_code { success = 0, open_display_failure, unknwon_error };
-
-  std::string read_file( const fs::path& path );
+  std::string                read_file( const fs::path& path );
+  std::vector< std::string > split_by_lines( const std::string& );
 
   void todo( std::string_view msg,
              std::source_location = std::source_location::current( ) );

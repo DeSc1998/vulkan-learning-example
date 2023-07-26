@@ -6,7 +6,13 @@
 
 namespace ds {
 
-  Window_handle::Window_handle( Window_handle::Size dim ) {
+  static void resize_callback( GLFWwindow* win, int, int ) {
+    auto window
+      = reinterpret_cast< Window_handle* >( glfwGetWindowUserPointer( win ) );
+    window->has_been_resized = true;
+  }
+
+  Window_handle::Window_handle( Size dim ) {
     if ( glfwInit( ) != GLFW_TRUE ) {
       error( "failed to initilaize glfw" );
       exit( 1 );
@@ -15,8 +21,8 @@ namespace ds {
     glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
     window
       = glfwCreateWindow( dim.width, dim.height, "unnamed", nullptr, nullptr );
-
-    if ( window == nullptr ) { }
+    glfwSetWindowUserPointer( window, this );
+    glfwSetFramebufferSizeCallback( window, resize_callback );
 
     glfwMakeContextCurrent( window );
   }
@@ -28,13 +34,9 @@ namespace ds {
   std::vector< const char* > Window_handle::get_required_extensions( ) const {
     uint32_t     count = 0;
     const char** exts  = glfwGetRequiredInstanceExtensions( &count );
-    if ( count > 0 ) {
-      // info( "listing extensions" );
-      // for ( uint32_t i = 0; i < count; ++i ) {
-      //   info( exts[i] );
-      // }
+    if ( count > 0 )
       return std::vector< const char* > { exts, exts + count };
-    } else
+    else
       return { };
   }
 
@@ -49,7 +51,7 @@ namespace ds {
   }
 
   vk::Extent2D Window_handle::get_extent( vk::PhysicalDevice dev,
-                                          vk::SurfaceKHR     surf ) const {
+                                          vk::SurfaceKHR     surf ) {
     vk::SurfaceCapabilitiesKHR capabilities { };
     (void)dev.getSurfaceCapabilitiesKHR(
       surf, &capabilities ); // TODO: assumed success
@@ -59,12 +61,38 @@ namespace ds {
     auto extent = vk::Extent2D { static_cast< uint32_t >( width ),
                                  static_cast< uint32_t >( height ) };
 
-    return vk::Extent2D {
-      std::clamp( extent.width, capabilities.minImageExtent.width,
-                  capabilities.maxImageExtent.width ),
-      std::clamp( extent.height, capabilities.minImageExtent.height,
-                  capabilities.maxImageExtent.height )
-    };
+    extent.width = std::clamp( extent.width, capabilities.minImageExtent.width,
+                               capabilities.maxImageExtent.width );
+    extent.height
+      = std::clamp( extent.height, capabilities.minImageExtent.height,
+                    capabilities.maxImageExtent.height );
+
+    if ( old_extent == vk::Extent2D( ) ) {
+      old_extent = extent;
+    }
+
+    return extent;
+  }
+
+  vk::Extent2D Window_handle::get_old_extent( ) const { return old_extent; }
+  void         Window_handle::update_extent( vk::PhysicalDevice dev,
+                                             vk::SurfaceKHR     surf ) {
+    vk::SurfaceCapabilitiesKHR capabilities { };
+    (void)dev.getSurfaceCapabilitiesKHR(
+      surf, &capabilities ); // TODO: assumed success
+
+    int width, height;
+    glfwGetWindowSize( window, &width, &height );
+    auto extent = vk::Extent2D { static_cast< uint32_t >( width ),
+                                 static_cast< uint32_t >( height ) };
+
+    extent.width = std::clamp( extent.width, capabilities.minImageExtent.width,
+                                       capabilities.maxImageExtent.width );
+    extent.height
+      = std::clamp( extent.height, capabilities.minImageExtent.height,
+                            capabilities.maxImageExtent.height );
+
+    old_extent = extent;
   }
 
   Window_handle::Event Window_handle::next_event( ) const {
@@ -73,7 +101,12 @@ namespace ds {
     }
 
     glfwPollEvents( );
+    auto keystate = glfwGetKey( window, GLFW_KEY_ESCAPE );
 
+    if ( keystate == GLFW_PRESS ) {
+      info( "glfw - Escape was pressed" );
+      return { Event::Type::Close_window };
+    }
     // TODO: handle incomming events
 
     return { };
@@ -82,10 +115,12 @@ namespace ds {
   bool Window_handle::has_presentation_support( vk::Instance       instance,
                                                 vk::PhysicalDevice dev,
                                                 uint32_t index ) const {
-    return glfwGetPhysicalDevicePresentationSupport( instance, dev, index )
-           == GLFW_TRUE;
+    return glfwGetPhysicalDevicePresentationSupport( instance, dev, index );
   }
 
-  Window_handle::~Window_handle( ) { glfwTerminate( ); }
+  Window_handle::~Window_handle( ) {
+    glfwDestroyWindow( window );
+    glfwTerminate( );
+  }
 
 }
