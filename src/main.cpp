@@ -1,8 +1,8 @@
 
-#include "pch.hpp"
-
 #include "component.hpp"
 #include "impl.hpp"
+#include "object.hpp"
+#include <fmt/base.h>
 
 #define Unused( x ) (void)x
 
@@ -22,7 +22,20 @@ int main( int argc, char* argv[] ) {
   ds::Engine engine;
 
   const auto verts = ds::Component::read_from_file( "obj/pyramid.obj" );
+  const auto model = ds::model_from_file( "obj/pyramid.obj.bak" );
   print_components( verts );
+
+  fmt::print( "INFO: vertices\n" );
+  for ( const auto vertex : model.vertices ) {
+    const auto [x, y, z] = vertex;
+    fmt::print( "{{ {}, {}, {} }}\n", x, y, z );
+  }
+
+  fmt::print( "INFO: faces\n" );
+  for ( const auto face : model.faces ) {
+    const auto [x, y, z] = face;
+    fmt::print( "{{ {}, {}, {} }}\n", x, y, z );
+  }
 
   engine.set_components( verts );
 

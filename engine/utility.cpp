@@ -45,6 +45,29 @@ namespace ds {
     return out;
   }
 
+  std::vector< std::string > split_by_words( const std::string& str ) {
+    auto                       iter        = str.begin( );
+    auto                       substrbegin = str.begin( );
+    std::vector< std::string > out { };
+    while ( iter < str.end( ) ) {
+      if ( *iter == ' ' ) {
+        const auto size = iter - substrbegin;
+        if ( size > 0 )
+          out.emplace_back( std::string {
+            &*substrbegin, static_cast< std::string::size_type >( size ) } );
+        substrbegin = ++iter;
+        continue;
+      }
+      ++iter;
+    }
+    const auto size = iter - substrbegin;
+    if ( size > 0 )
+      out.emplace_back( std::string {
+        &*substrbegin, static_cast< std::string::size_type >( size ) } );
+
+    return out;
+  }
+
   void todo( std::string_view msg, std::source_location loc ) {
     if constexpr ( debug_mode ) {
       fmt::print( "  TODO: In {} on line {}: {}\n", loc.file_name( ),

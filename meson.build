@@ -21,6 +21,7 @@ engine_src = [
   'engine/impl.cpp',
   'engine/component.cpp',
   'engine/utility.cpp',
+  'engine/object.cpp',
   'engine/window.cpp'
 ]
 
@@ -100,6 +101,7 @@ exe = executable(
   include_directories : 'engine',
   cpp_args : [ '-D', 'NDEBUG', '-g' ],
   cpp_pch : pch,
+  dependencies : [ fmt ],
   link_with : engine
 )
 
@@ -110,6 +112,7 @@ exe = executable(
   cpp_pch : pch,
   cpp_args : [ '-g' ],
   link_with : engine_d,
+  dependencies : [ fmt ],
   override_options : [ 'buildtype=debug' ]
 )
 
