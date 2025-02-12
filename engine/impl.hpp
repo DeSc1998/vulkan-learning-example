@@ -38,6 +38,7 @@ namespace ds {
     vk::SurfaceKHR     surface { };
 
     vk::SwapchainKHR swap_chain { };
+    bool             swap_chain_ok = false;
 
     std::vector< vk::Image >     swap_chain_images { };
     std::vector< vk::ImageView > swap_chain_image_views { };
@@ -73,7 +74,7 @@ namespace ds {
     void pick_physical_device( );
     void create_surface( );
     void create_device( );
-    void create_swap_chain( );
+    void create_swap_chain( size_t = 0, size_t = 0 );
     void create_image_views( );
     void create_descriptor_layout( );
     void create_graphics_pipeline( );
@@ -90,6 +91,8 @@ namespace ds {
 
     void recreate( );
     bool handle_result( vk::Result );
+
+    friend class Window_handle;
 
   public:
     Engine( ) = default;

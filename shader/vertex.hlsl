@@ -24,15 +24,14 @@ float4 rotate_y(float4 pos, float4 axes, float angle) {
       float4x4(float4(cos(angle), 0, sin(angle), 0), float4(0, 1, 0, 0),
                float4(-sin(angle), 0, cos(angle), 0), float4(0, 0, 0, 1));
 
-  return rotate * (pos - axes) + axes;
+  // return rotate * (pos - axes) + axes;
+  return rotate * pos;
 }
 
 float2 cosines_to_default(float4 input) {
   // const float4 default_ = float4(0, 0, 1, 0);
-  float len_in_xz = length(input.xz);
-  float len_in_yz = length(input.yz);
-  float cx = input.z / len_in_yz;
-  float cy = input.z / len_in_xz;
+  float cx = input.z / length(input.yz);
+  float cy = input.z / length(input.xz);
   return float2(cx, cy);
 }
 
@@ -44,8 +43,8 @@ float4x4 rotation_matrix(float2 cosines) {
 
   float4x4 rot_x = {float4(1, 0, 0, 0), float4(0, cx, sx, 0),
                     float4(0, -sx, cx, 0), float4(0, 0, 0, 1)};
-  float4x4 rot_y = {float4(cy, 0, sy, 0), float4(0, 1, 0, 0),
-                    float4(-sy, 0, cy, 0), float4(0, 0, 0, 1)};
+  float4x4 rot_y = {float4(cy, 0, -sy, 0), float4(0, 1, 0, 0),
+                    float4(sy, 0, cy, 0), float4(0, 0, 0, 1)};
 
   return rot_y * rot_x;
 }
@@ -61,12 +60,12 @@ v2p main(info input) {
   v2p output;
 
   float pi = 3.14159265358979323846;
-  float4 p = float4(input.pos, 1);
-  float4 rot = rotate_y(p, float4(0, 0, 0, 0), pi / 2 * input.time);
+  float4 pos = float4(input.pos, 1);
+  float4 rot = rotate_y(pos, float4(0, 0, 0, 0), pi / 2 * input.time);
 
   float2 cos = cosines_to_default(cam.direction);
   float4x4 view = rotation_matrix(cos);
-  float4x4 proj = world_to_view(pi / 3, pi / 3, 0.3, 4);
+  float4x4 proj = world_to_view(1, 1, 0.1, 5);
 
   output.pos = view * proj * (rot - cam.position);
   output.color = input.color;

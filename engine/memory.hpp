@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <vulkan/vulkan_structs.hpp>
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
 #include <vulkan/vulkan.hpp>
 
@@ -100,8 +101,7 @@ namespace ds {
       (void)device.bindBufferMemory( buffer, device_memory, 0 );
 
       result = device.mapMemory( device_memory, 0, buffer_info.size,
-                                 (vk::MemoryMapFlags)0, (void**)&memory,
-                                 vk::DispatchLoaderStatic( ) );
+                                 (vk::MemoryMapFlags)0, (void**)&memory );
       exit_on_fail( "failed to map memory", result );
     }
 

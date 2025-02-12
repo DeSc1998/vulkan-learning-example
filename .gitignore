@@ -4,3 +4,4 @@ conaninfo.txt
 conanbuildinfo.txt
 *.pc
 *.json
+.cache/clangd/index

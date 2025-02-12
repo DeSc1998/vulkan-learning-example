@@ -351,7 +351,7 @@ namespace ds {
     return format != formats.end( ) ? *format : *formats.begin( );
   }
 
-  void Engine::create_swap_chain( ) {
+  void Engine::create_swap_chain( size_t width, size_t height ) {
     if constexpr ( debug_mode )
       fmt::print( "INFO: creating swap chain\n" );
 
@@ -373,7 +373,6 @@ namespace ds {
 
       return mode != modes.end( ) ? *mode : vk::PresentModeKHR::eFifo;
     };
-
     vk::SurfaceCapabilitiesKHR capabiliteies { };
     (void)physical_device.getSurfaceCapabilitiesKHR( surface, &capabiliteies );
 
@@ -387,7 +386,13 @@ namespace ds {
     (void)physical_device.getSurfacePresentModesKHR( surface, &count,
                                                      modes.data( ) );
 
-    const auto extent          = win.get_extent( physical_device, surface );
+    auto extent = win.get_extent( physical_device, surface );
+
+    if ( width > 0 && height > 0 ) {
+      extent.height = height;
+      extent.width  = width;
+    }
+
     const auto max_image_count = capabiliteies.maxImageCount;
     const auto min_image_count = capabiliteies.minImageCount;
     const auto image_count
@@ -411,6 +416,10 @@ namespace ds {
     create_info.preTransform
       = capabiliteies.currentTransform; // no special transform
 
+    if ( swap_chain ) {
+      create_info.oldSwapchain = swap_chain;
+    }
+
     const auto& indicies = find_queue_families( physical_device, surface );
     uint32_t    queue_indicies[2];
 
@@ -430,6 +439,10 @@ namespace ds {
 
     exit_on_fail( "failed to create Swapchain", result );
 
+    if ( create_info.oldSwapchain ) {
+      device.destroy( create_info.oldSwapchain, nullptr );
+    }
+
     if constexpr ( debug_mode )
       fmt::print( "INFO: finished creating swap chain\n" );
 
@@ -442,6 +455,8 @@ namespace ds {
     if ( result != vk::Result::eSuccess ) {
       error( "failed to retrive images", result );
     }
+    swap_chain_ok = true;
+
     win.update_extent( physical_device, surface );
   }
 
@@ -883,9 +898,8 @@ namespace ds {
                                                           0.2 } };
     vk::Viewport   view { };
     vk::Rect2D     scissor { };
-    vk::Rect2D     old_area { };
-    auto           extent     = win.get_extent( physical_device, surface );
-    auto           old_extent = win.get_old_extent( );
+    vk::Rect2D     error_area { };
+    auto           extent = win.get_extent( physical_device, surface );
 
     view.x        = 0.0;
     view.y        = 0.0;
@@ -903,10 +917,13 @@ namespace ds {
     rp_info.pClearValues      = &clear_color;
     rp_info.pNext             = &grp_info;
 
-    old_area.extent                = old_extent;
+    error_area.extent.height
+      = std::max( extent.height - extent.height / 50, extent.height - 2 );
+    error_area.extent.width
+      = std::max( extent.width - extent.width / 50, extent.width - 2 );
     grp_info.deviceMask            = 1; // TODO: deviceMask is hard coded
     grp_info.deviceRenderAreaCount = 1;
-    grp_info.pDeviceRenderAreas    = &old_area;
+    grp_info.pDeviceRenderAreas    = &error_area;
 
     cb_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
@@ -997,16 +1014,16 @@ namespace ds {
   }
 
   void Engine::recreate( ) {
-    (void)device.waitForFences( fence_in_flight.size( ),
-                                fence_in_flight.data( ), vk::Bool32( true ),
-                                std::numeric_limits< uint64_t >::max( ) );
-    //(void)device.waitIdle( );
+    // TODO: https://nanokatze.gitlab.io/vulkan/handling-window-resize/
+    (void)device.waitIdle( );
 
     if constexpr ( debug_mode )
       info( "freeing image views" );
 
-    for ( auto& framebuffer : framebuffers ) {
-      device.destroy( framebuffer, nullptr );
+    for ( size_t i = 0; i < framebuffers.size( ); ++i ) {
+      (void)device.waitForFences( 1, &fence_in_flight[i], vk::Bool32( true ),
+                                  std::numeric_limits< uint64_t >::max( ) );
+      device.destroy( framebuffers[i], nullptr );
     }
     framebuffers.clear( );
 
@@ -1015,13 +1032,11 @@ namespace ds {
     }
     swap_chain_image_views.clear( );
 
-    device.destroy( swap_chain, nullptr );
+    auto new_size = win.from_callback.value_or( Size { 0, 0 } );
 
-    create_swap_chain( );
+    create_swap_chain( new_size.width, new_size.height );
     create_image_views( );
     create_framebuffers( );
-
-    //(void)device.resetFences( 1, &fence_in_flight );
   }
 
   /// @return true if 'result' was vk::Result::eSuccess

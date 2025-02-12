@@ -42,7 +42,8 @@ namespace ds {
     vk::Extent2D old_extent { };
 
   public:
-    bool has_been_resized = false;
+    bool                  has_been_resized = false;
+    std::optional< Size > from_callback;
 
     struct Event {
       enum class Type {

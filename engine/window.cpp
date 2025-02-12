@@ -6,10 +6,12 @@
 
 namespace ds {
 
-  static void resize_callback( GLFWwindow* win, int, int ) {
+  static void resize_callback( GLFWwindow* win, int width, int height ) {
     auto window
       = reinterpret_cast< Window_handle* >( glfwGetWindowUserPointer( win ) );
     window->has_been_resized = true;
+    window->from_callback    = Size { .width  = static_cast< size_t >( width ),
+                                      .height = static_cast< size_t >( height ) };
   }
 
   Window_handle::Window_handle( Size dim ) {
